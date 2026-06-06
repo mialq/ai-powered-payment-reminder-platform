@@ -1,0 +1,28 @@
+# Dados brutos e processados
+data/raw/*
+data/bronze/*
+data/silver/*
+data/gold/*
+
+# Arquivos grandes
+*.csv
+*.parquet
+
+# Python
+__pycache__/
+*.pyc
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Variáveis de ambiente
+.env
+
+# Sistema operacional
+.DS_Store
+Thumbs.db

@@ -2,9 +2,13 @@
 
 ## Visão Geral
 
-Este projeto tem como objetivo criar uma solução de Engenharia de Dados e Analytics para identificar clientes com maior risco de atraso no pagamento e apoiar estratégias de lembrete preventivo antes do vencimento.
+Este projeto nasceu a partir de uma pergunta de negócio que me fez refletir sobre como a área de dados pode apoiar ações preventivas antes que o problema aconteça: como identificar clientes com maior risco de atraso e ajudá-los a lembrar do pagamento antes do vencimento?
 
-A proposta é transformar dados brutos de pagamentos em uma base analítica confiável, capaz de alimentar dashboards no Power BI e, futuramente, um agente de IA com RAG para recomendar ações personalizadas de comunicação.
+A partir dessa ideia, estruturei uma solução de Engenharia de Dados e Analytics com foco em transformar dados brutos de pagamentos em uma base analítica confiável, organizada em camadas Raw, Bronze, Silver e Gold.
+
+O objetivo foi construir um pipeline simples, rastreável e orientado ao negócio, criando métricas como atraso de pagamento, taxa de atraso por cliente, perfil de comportamento e nível de risco.
+
+Com essa base tratada, a solução pode apoiar dashboards no Power BI e, futuramente, um agente de IA com RAG, capaz de responder perguntas sobre o comportamento dos clientes e sugerir estratégias de lembrete preventivo de forma mais personalizada.
 
 ---
 

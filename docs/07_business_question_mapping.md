@@ -1,199 +1,496 @@
-# 07 - Business Question Mapping
+# Mapeamento das Perguntas de Negócio
 
-## Projeto
+Este documento conecta as perguntas de negócio do projeto **AI-Powered Payment Reminder & Delinquency Prevention Platform** aos dados, métricas e indicadores criados nas camadas Silver e Gold.
 
-AI-Powered Payment Reminder & Delinquency Prevention Platform
+O objetivo é mostrar como o pipeline de dados responde, de forma rastreável, à pergunta central do projeto:
 
-## Objetivo deste documento
-
-Este documento apresenta o raciocínio utilizado para conectar a dor de negócio às decisões técnicas do projeto.
-
-A proposta é mostrar como uma pergunta de negócio foi transformada em:
-
-* entendimento dos dados;
-* criação de métricas;
-* organização em camadas;
-* tabela analítica;
-* consumo por Power BI;
-* possibilidade de uso com IA/RAG.
+> Como identificar clientes com maior risco de atraso e priorizar ações de lembrete preventivo antes do vencimento?
 
 ---
 
-## 1. Qual é a dor do negócio?
+## 1. Pergunta Central do Projeto
 
-A dor do negócio é reduzir atrasos de pagamento e prevenir inadimplência por meio de lembretes mais inteligentes antes do vencimento.
+A pergunta principal é:
 
-Em vez de enviar o mesmo lembrete para todos os clientes, a solução busca identificar quais clientes possuem maior chance de atrasar com base no histórico de pagamento.
+> Como identificar clientes com maior risco de atraso e acionar lembretes preventivos antes do vencimento?
 
-Pergunta central do projeto:
+Para responder a essa pergunta, o projeto constrói um pipeline em camadas:
 
 ```text
-Como identificar clientes com maior risco de atraso e acionar lembretes preventivos antes do vencimento?
+raw
+↓
+bronze
+↓
+silver
+↓
+gold
 ```
 
----
-
-## 2. Quais dados respondem essa dor?
-
-A principal fonte utilizada foi a tabela `installments_payments`, que contém o histórico de pagamentos dos clientes.
-
-Campos principais utilizados:
-
-| Campo original     | Significado no projeto                    |
-| ------------------ | ----------------------------------------- |
-| SK_ID_CURR         | Identificador do cliente                  |
-| SK_ID_PREV         | Identificador do contrato anterior        |
-| DAYS_INSTALMENT    | Dia previsto para pagamento               |
-| DAYS_ENTRY_PAYMENT | Dia real em que o pagamento foi realizado |
-| AMT_INSTALMENT     | Valor previsto da parcela                 |
-| AMT_PAYMENT        | Valor efetivamente pago                   |
-
-Esses campos permitem comparar o vencimento previsto com o pagamento real, identificando se o cliente pagou antes, no vencimento ou em atraso.
-
----
-
-## 3. Qual métrica representa o problema?
-
-A principal métrica criada foi `days_delay`.
-
-Regra:
+A camada final utilizada para análise de negócio é:
 
 ```text
-days_delay = actual_payment_day_offset - scheduled_payment_day_offset
+data/gold/gold_indicadores_cliente.parquet
 ```
 
-Equivalente aos campos originais:
+Essa tabela possui uma linha por cliente com histórico de pagamento e contém informações de risco, comportamento, prioridade de contato, ação recomendada e cobertura cadastral.
+
+---
+
+## 2. Como o Projeto Responde à Pergunta de Negócio
+
+A resposta é construída em etapas:
+
+| Etapa                               | O que responde                                                                  |
+| ----------------------------------- | ------------------------------------------------------------------------------- |
+| Silver de pagamentos                | Identifica se cada pagamento foi antecipado, no prazo, atrasado ou sem registro |
+| Silver de comportamento por cliente | Consolida o histórico de pagamento por cliente                                  |
+| Silver de clientes                  | Enriquece a análise com dados cadastrais                                        |
+| Gold de indicadores por cliente     | Define risco, prioridade de contato, ação recomendada e canal sugerido          |
+
+A camada Gold permite responder:
+
+* quem são os clientes com maior risco;
+* quantos clientes devem ser priorizados;
+* qual ação preventiva é recomendada;
+* qual canal pode ser utilizado;
+* qual valor histórico está associado aos clientes priorizados;
+* quantos clientes têm ou não cadastro disponível.
+
+---
+
+## 3. Pergunta: O Cliente Costuma Pagar em Atraso?
+
+Essa pergunta é respondida a partir da Silver de pagamentos.
+
+Arquivo:
 
 ```text
-DAYS_DELAY = DAYS_ENTRY_PAYMENT - DAYS_INSTALMENT
+data/silver/silver_pagamentos_parcelas.parquet
+```
+
+Campos principais:
+
+| Campo                      | Descrição                                         |
+| -------------------------- | ------------------------------------------------- |
+| `dif_dias_vencimento`      | Diferença entre data de pagamento e data prevista |
+| `dias_atraso`              | Quantidade de dias de atraso                      |
+| `dias_antecipacao`         | Quantidade de dias de antecipação                 |
+| `status_pagamento`         | Classificação do pagamento                        |
+| `flg_pagamento_atrasado`   | Indica se o pagamento foi atrasado                |
+| `flg_pagamento_antecipado` | Indica se o pagamento foi antecipado              |
+| `flg_pagamento_no_prazo`   | Indica se o pagamento foi feito no prazo          |
+
+Regra principal:
+
+```text
+dif_dias_vencimento = dias_pagamento_ref - dias_previsto_ref
 ```
 
 Interpretação:
 
-|      Resultado | Interpretação                          |
-| -------------: | -------------------------------------- |
-| days_delay < 0 | Cliente pagou antes do vencimento      |
-| days_delay = 0 | Cliente pagou exatamente no vencimento |
-| days_delay > 0 | Cliente pagou em atraso                |
+|                     Resultado | Significado            |
+| ----------------------------: | ---------------------- |
+|     `dif_dias_vencimento < 0` | Pagamento antecipado   |
+|     `dif_dias_vencimento = 0` | Pagamento no prazo     |
+|     `dif_dias_vencimento > 0` | Pagamento em atraso    |
+| `dif_dias_vencimento IS NULL` | Pagamento sem registro |
 
-A partir dessa métrica, foram criadas outras métricas analíticas:
+Status possíveis:
 
-| Métrica                   | Descrição                                           |
-| ------------------------- | --------------------------------------------------- |
-| total_late_payments       | Quantidade de pagamentos atrasados                  |
-| late_payment_rate_percent | Percentual de pagamentos atrasados                  |
-| average_delay_days        | Média geral de atraso ou antecipação                |
-| average_late_delay_days   | Média de dias de atraso considerando apenas atrasos |
-| max_delay_days            | Maior atraso registrado                             |
-| risk_level                | Classificação de risco do cliente                   |
-
-A métrica mais importante para o negócio é `late_payment_rate_percent`, pois indica a proporção de atrasos no histórico do cliente.
+| Status                     | Significado                             |
+| -------------------------- | --------------------------------------- |
+| `pago_antecipado`          | Pagamento realizado antes do vencimento |
+| `pago_no_prazo`            | Pagamento realizado exatamente no prazo |
+| `pago_em_atraso`           | Pagamento realizado após o vencimento   |
+| `sem_pagamento_registrado` | Pagamento sem data ou valor registrado  |
 
 ---
 
-## 4. Qual tabela analítica entrega essa resposta?
+## 4. Pergunta: Qual é o Comportamento Histórico do Cliente?
 
-A tabela analítica que entrega essa resposta está na camada Gold:
+Essa pergunta é respondida pela Silver de comportamento de pagamento por cliente.
+
+Arquivo:
 
 ```text
-data/gold/gold_customer_payment_behavior.parquet
+data/silver/silver_comportamento_pagamento_cliente.parquet
 ```
 
-Essa tabela possui uma linha por cliente e consolida o comportamento histórico de pagamento.
+Granularidade:
 
-Principais colunas da Gold:
+```text
+1 linha = 1 cliente com histórico de pagamento
+```
 
-| Coluna                    | Descrição                                       |
+Campos principais:
+
+| Campo                  | Descrição                               |
+| ---------------------- | --------------------------------------- |
+| `qtd_parcelas_total`   | Total de parcelas associadas ao cliente |
+| `qtd_parcelas_validas` | Parcelas com pagamento registrado       |
+| `qtd_parcelas_atraso`  | Parcelas pagas em atraso                |
+| `qtd_pagas_antecipado` | Parcelas pagas antecipadamente          |
+| `qtd_pagas_no_prazo`   | Parcelas pagas no prazo                 |
+| `taxa_atraso_pct`      | Percentual de atraso do cliente         |
+| `media_dias_atraso`    | Média de dias de atraso                 |
+| `maior_atraso_dias`    | Maior atraso histórico                  |
+| `perfil_pagamento`     | Perfil comportamental do cliente        |
+| `nivel_risco`          | Classificação de risco do cliente       |
+
+Essa camada transforma vários registros de pagamentos em uma visão consolidada por cliente.
+
+---
+
+## 5. Pergunta: Qual é o Perfil de Pagamento do Cliente?
+
+O campo `perfil_pagamento` classifica o comportamento histórico do cliente.
+
+| Perfil                       | Interpretação                                    |
+| ---------------------------- | ------------------------------------------------ |
+| `pagador_antecipado`         | Cliente costuma pagar antes do vencimento        |
+| `pagador_no_prazo`           | Cliente não apresenta atrasos e paga no prazo    |
+| `baixo_atraso`               | Cliente tem baixa taxa de atraso                 |
+| `atraso_moderado`            | Cliente tem atraso em nível intermediário        |
+| `alto_atraso`                | Cliente tem comportamento elevado de atraso      |
+| `comportamento_desconhecido` | Cliente sem dados suficientes para classificação |
+
+Essa informação ajuda a entender se o cliente precisa de lembrete, relacionamento, monitoramento ou revisão.
+
+---
+
+## 6. Pergunta: Qual é o Nível de Risco do Cliente?
+
+O campo `nivel_risco` classifica o risco de atraso do cliente com base no histórico de pagamentos.
+
+| Nível de risco       | Interpretação                                             |
+| -------------------- | --------------------------------------------------------- |
+| `baixo_risco`        | Cliente com bom comportamento histórico                   |
+| `medio_risco`        | Cliente com sinais relevantes de atraso                   |
+| `alto_risco`         | Cliente com atraso frequente ou severo                    |
+| `risco_desconhecido` | Cliente com dados insuficientes para classificação segura |
+
+Regra geral:
+
+| Condição                                                                                                              | Classificação        |
+| --------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| Cliente sem parcelas válidas                                                                                          | `risco_desconhecido` |
+| Taxa de atraso maior ou igual a 30% ou maior atraso maior ou igual a 30 dias                                          | `alto_risco`         |
+| Taxa de atraso maior ou igual a 10%, média de atraso maior ou igual a 5 dias ou maior atraso maior ou igual a 10 dias | `medio_risco`        |
+| Demais casos                                                                                                          | `baixo_risco`        |
+
+Essa regra considera tanto a frequência quanto a severidade do atraso.
+
+---
+
+## 7. Pergunta: Quais Clientes Devem Ser Priorizados?
+
+Essa pergunta é respondida na Gold pelo campo:
+
+```text
+flg_priorizar_contato
+```
+
+Arquivo:
+
+```text
+data/gold/gold_indicadores_cliente.parquet
+```
+
+Regra:
+
+| Condição                                                             | Valor |
+| -------------------------------------------------------------------- | ----: |
+| `nivel_risco IN ('alto_risco', 'medio_risco', 'risco_desconhecido')` |     1 |
+| `nivel_risco = baixo_risco`                                          |     0 |
+
+Interpretação:
+
+| Valor | Significado                 |
+| ----: | --------------------------- |
+|     1 | Cliente deve ser priorizado |
+|     0 | Cliente pode ser monitorado |
+
+Resultado validado:
+
+```text
+clientes_priorizados: 129.478
+```
+
+Distribuição:
+
+| Nível de risco       | Priorizados |
+| -------------------- | ----------: |
+| `medio_risco`        |      92.276 |
+| `alto_risco`         |      37.193 |
+| `risco_desconhecido` |           9 |
+| `baixo_risco`        |           0 |
+
+---
+
+## 8. Pergunta: Qual Prioridade de Contato Cada Cliente Deve Receber?
+
+Essa pergunta é respondida pelo campo:
+
+```text
+prioridade_contato
+```
+
+Valores possíveis:
+
+| Prioridade           | Interpretação                                                      |
+| -------------------- | ------------------------------------------------------------------ |
+| `prioridade_maxima`  | Cliente de alto risco com maior atraso igual ou superior a 30 dias |
+| `prioridade_alta`    | Cliente de alto risco                                              |
+| `prioridade_media`   | Cliente de médio risco                                             |
+| `prioridade_revisao` | Cliente com risco desconhecido                                     |
+| `prioridade_baixa`   | Cliente de baixo risco                                             |
+
+Distribuição validada:
+
+| Prioridade           | Clientes |
+| -------------------- | -------: |
+| `prioridade_baixa`   |  210.109 |
+| `prioridade_media`   |   92.276 |
+| `prioridade_maxima`  |   23.707 |
+| `prioridade_alta`    |   13.486 |
+| `prioridade_revisao` |        9 |
+
+---
+
+## 9. Pergunta: Qual Ação Recomendada para Cada Cliente?
+
+Essa pergunta é respondida pelo campo:
+
+```text
+acao_recomendada
+```
+
+Valores possíveis:
+
+| Ação recomendada                | Interpretação                                                       |
+| ------------------------------- | ------------------------------------------------------------------- |
+| `lembrete_preventivo_reforcado` | Comunicação mais forte para clientes de alto risco                  |
+| `lembrete_preventivo_padrao`    | Comunicação preventiva padrão para clientes de médio risco          |
+| `comunicacao_relacionamento`    | Comunicação leve para clientes de baixo risco com perfil antecipado |
+| `lembrete_suave`                | Lembrete leve para clientes de baixo risco                          |
+| `revisar_dados_pagamento`       | Revisão necessária para clientes com risco desconhecido             |
+
+Distribuição validada:
+
+| Ação recomendada                | Clientes |
+| ------------------------------- | -------: |
+| `comunicacao_relacionamento`    |  151.500 |
+| `lembrete_preventivo_padrao`    |   92.276 |
+| `lembrete_suave`                |   58.609 |
+| `lembrete_preventivo_reforcado` |   37.193 |
+| `revisar_dados_pagamento`       |        9 |
+
+---
+
+## 10. Pergunta: Qual Canal Pode Ser Usado Para Contato?
+
+Essa pergunta é respondida pelo campo:
+
+```text
+canal_sugerido
+```
+
+A regra utiliza os dados disponíveis na Silver de clientes.
+
+Valores possíveis:
+
+| Canal sugerido            | Interpretação                                   |
 | ------------------------- | ----------------------------------------------- |
-| customer_id               | Identificador do cliente                        |
-| total_installments        | Total de parcelas do cliente                    |
-| valid_installments        | Total de parcelas válidas para análise          |
-| total_late_payments       | Total de pagamentos atrasados                   |
-| total_paid_early          | Total de pagamentos antecipados                 |
-| total_paid_on_time        | Total de pagamentos no vencimento               |
-| late_payment_rate_percent | Percentual de atraso do cliente                 |
-| average_delay_days        | Média geral de dias de atraso ou antecipação    |
-| average_late_delay_days   | Média de atraso apenas dos pagamentos atrasados |
-| max_delay_days            | Maior atraso registrado                         |
-| payment_behavior_profile  | Perfil histórico de pagamento                   |
-| risk_level                | Nível de risco do cliente                       |
+| `email`                   | Cliente possui e-mail disponível                |
+| `celular`                 | Cliente possui celular disponível ou contatável |
+| `telefone`                | Cliente possui telefone disponível              |
+| `canal_nao_identificado`  | Não foi possível identificar canal de contato   |
+| `cadastro_nao_disponivel` | Cliente não possui cadastro disponível          |
 
-Com essa tabela, a área de negócio consegue responder:
-
-```text
-Quais clientes possuem maior risco de atraso?
-```
+Essa regra não envia mensagens automaticamente. Ela apenas sugere o canal mais apropriado com base nos dados disponíveis.
 
 ---
 
-## 5. Como a área de negócio vai consumir isso?
+## 11. Pergunta: Quantos Clientes Têm Cadastro Disponível?
 
-A área de negócio pode consumir a Gold de três formas principais.
-
-### 5.1 Power BI
-
-A tabela Gold pode alimentar um dashboard com indicadores como:
-
-* total de clientes;
-* clientes por nível de risco;
-* percentual de clientes de alto risco;
-* distribuição de comportamento de pagamento;
-* média de dias de atraso;
-* clientes com maior histórico de atraso.
-
-### 5.2 Régua de comunicação
-
-A classificação de risco pode apoiar uma régua de lembretes preventivos.
-
-| Risco        | Estratégia sugerida                                     |
-| ------------ | ------------------------------------------------------- |
-| LOW_RISK     | Lembrete simples próximo ao vencimento                  |
-| MEDIUM_RISK  | Lembrete antecipado com reforço de vencimento           |
-| HIGH_RISK    | Comunicação mais antecipada, recorrente e personalizada |
-| UNKNOWN_RISK | Necessita análise adicional antes de acionar            |
-
-### 5.3 IA/RAG
-
-A IA pode ser usada para apoiar a explicação e recomendação da estratégia de contato.
-
-Exemplos de perguntas que o agente poderia responder:
+Essa pergunta é respondida pelos campos:
 
 ```text
-Por que esse cliente foi classificado como HIGH_RISK?
+flg_cliente_com_cadastro
+status_cadastro
 ```
+
+Resultado validado:
+
+| Status de cadastro     | Clientes |
+| ---------------------- | -------: |
+| `cliente_com_cadastro` |  291.643 |
+| `cliente_sem_cadastro` |   47.944 |
+
+Percentual de clientes com cadastro:
 
 ```text
-Qual histórico justifica o envio de lembrete antecipado?
+85,88%
 ```
 
-```text
-Qual tipo de comunicação é mais adequada para esse perfil de cliente?
-```
+Decisão de modelagem:
 
-O RAG pode recuperar a documentação do projeto, as regras de classificação e os dados tratados para gerar respostas mais contextualizadas e rastreáveis.
+A Gold mantém todos os clientes com histórico de pagamento, mesmo quando não existe cadastro disponível.
+
+Isso evita perda de clientes importantes para análise de comportamento.
 
 ---
 
-## Conclusão
+## 12. Pergunta: Qual Valor Histórico Está Associado aos Clientes Priorizados?
 
-Este projeto parte de uma dor real de negócio: reduzir atrasos e prevenir inadimplência.
-
-A solução construída organiza os dados em camadas, cria métricas de comportamento de pagamento e entrega uma visão analítica por cliente.
-
-Com isso, a empresa pode deixar de enviar lembretes genéricos para todos os clientes e passar a priorizar clientes com maior risco, aumentando a efetividade das ações preventivas.
-
-Resumo do raciocínio:
+Essa pergunta é respondida pelo campo:
 
 ```text
-Dor do negócio
-    ↓
-Histórico de pagamentos
-    ↓
-Cálculo de atraso
-    ↓
-Classificação do comportamento
-    ↓
-Classificação de risco
-    ↓
-Power BI e IA para apoiar decisão
+valor_previsto_total_priorizado
 ```
+
+Regra:
+
+| Condição                                       | Valor                         |
+| ---------------------------------------------- | ----------------------------- |
+| `nivel_risco IN ('alto_risco', 'medio_risco')` | recebe `valor_previsto_total` |
+| Demais casos                                   | recebe 0                      |
+
+Resultado validado:
+
+```text
+valor_previsto_total_priorizado aproximadamente 112.862.100.000
+```
+
+Esse campo pode ser usado no Power BI para medir o valor histórico associado à carteira priorizada.
+
+---
+
+## 13. Pergunta: Como Agrupar os Clientes Para Análise de Negócio?
+
+Essa pergunta é respondida pelo campo:
+
+```text
+grupo_negocio
+```
+
+Valores possíveis:
+
+| Grupo                    | Interpretação                   |
+| ------------------------ | ------------------------------- |
+| `clientes_prioritarios`  | Clientes de médio ou alto risco |
+| `clientes_para_revisao`  | Clientes com risco desconhecido |
+| `clientes_monitoramento` | Clientes de baixo risco         |
+
+Esse campo facilita a criação de filtros e segmentações no Power BI.
+
+---
+
+## 14. Pergunta: Como a Área de Negócio Pode Usar Essas Informações?
+
+A Gold permite criar uma visão orientada à ação:
+
+| Situação                                    | Ação sugerida                             |
+| ------------------------------------------- | ----------------------------------------- |
+| Cliente de alto risco                       | Enviar lembrete preventivo reforçado      |
+| Cliente de médio risco                      | Enviar lembrete preventivo padrão         |
+| Cliente de baixo risco e pagador antecipado | Usar comunicação de relacionamento        |
+| Cliente de baixo risco                      | Enviar lembrete suave ou apenas monitorar |
+| Cliente com risco desconhecido              | Revisar dados antes de ação automatizada  |
+
+Essa abordagem evita tratar todos os clientes da mesma forma.
+
+---
+
+## 15. Perguntas Que o Dashboard Pode Responder
+
+O dashboard no Power BI poderá responder:
+
+| Pergunta                                            | Campo principal                   |
+| --------------------------------------------------- | --------------------------------- |
+| Quantos clientes foram analisados?                  | `id_cliente`                      |
+| Quantos clientes são de alto risco?                 | `nivel_risco`                     |
+| Quantos clientes devem ser priorizados?             | `flg_priorizar_contato`           |
+| Qual prioridade de contato tem mais clientes?       | `prioridade_contato`              |
+| Qual ação recomendada é mais comum?                 | `acao_recomendada`                |
+| Quantos clientes não possuem cadastro?              | `status_cadastro`                 |
+| Qual valor está associado aos clientes priorizados? | `valor_previsto_total_priorizado` |
+| Quais clientes têm maior atraso histórico?          | `maior_atraso_dias`               |
+| Quais clientes têm maior taxa de atraso?            | `taxa_atraso_pct`                 |
+| Qual canal sugerido para contato?                   | `canal_sugerido`                  |
+
+---
+
+## 16. Perguntas Que um Futuro Agente de IA Poderá Responder
+
+Um futuro agente de IA/RAG poderá usar a Gold e a documentação do projeto para responder perguntas como:
+
+```text
+Por que este cliente foi classificado como alto_risco?
+```
+
+```text
+Quais clientes devem receber lembrete preventivo reforçado?
+```
+
+```text
+Qual ação recomendada para clientes de medio_risco?
+```
+
+```text
+Quantos clientes priorizados não possuem cadastro?
+```
+
+```text
+Qual grupo de clientes representa maior valor previsto priorizado?
+```
+
+```text
+Quais regras foram usadas para definir prioridade_contato?
+```
+
+O agente poderá recuperar informações deste documento, das regras de negócio e do dicionário da Gold para gerar respostas mais explicáveis.
+
+---
+
+## 17. Relação Entre Perguntas, Camadas e Arquivos
+
+| Pergunta                                   | Camada | Arquivo                                          |
+| ------------------------------------------ | ------ | ------------------------------------------------ |
+| O pagamento foi atrasado?                  | Silver | `silver_pagamentos_parcelas.parquet`             |
+| Qual o comportamento histórico do cliente? | Silver | `silver_comportamento_pagamento_cliente.parquet` |
+| Qual o perfil cadastral do cliente?        | Silver | `silver_clientes_cadastro.parquet`               |
+| Qual cliente deve ser priorizado?          | Gold   | `gold_indicadores_cliente.parquet`               |
+| Qual ação deve ser recomendada?            | Gold   | `gold_indicadores_cliente.parquet`               |
+| Qual canal sugerido para contato?          | Gold   | `gold_indicadores_cliente.parquet`               |
+| Qual valor histórico está priorizado?      | Gold   | `gold_indicadores_cliente.parquet`               |
+
+---
+
+## 18. Limitações da Resposta de Negócio
+
+As respostas geradas pelo projeto devem ser interpretadas com alguns cuidados:
+
+* A classificação de risco é baseada em regras de negócio, não em modelo preditivo supervisionado.
+* As datas do dataset são relativas, não datas reais de calendário.
+* Clientes sem cadastro foram mantidos para preservar histórico de pagamento.
+* A sugestão de canal depende da disponibilidade dos dados cadastrais.
+* Antes de automatizar mensagens reais, seria necessário validar regras com áreas de negócio, jurídico, privacidade e canais de comunicação.
+
+---
+
+## 19. Conclusão
+
+O projeto transforma dados brutos de pagamentos e cadastro em uma visão analítica final capaz de apoiar decisões de negócio.
+
+A camada Gold responde à pergunta central do projeto ao indicar:
+
+```text
+quem tem maior risco
+quem deve ser priorizado
+qual ação é recomendada
+qual canal pode ser usado
+qual valor está associado à carteira priorizada
+```
+
+Com isso, a empresa pode sair de uma estratégia genérica de lembrete para uma abordagem mais segmentada, rastreável e orientada por dados.

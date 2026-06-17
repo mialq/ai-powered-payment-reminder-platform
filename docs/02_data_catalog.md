@@ -613,22 +613,107 @@ docs/10_regras_negocio_priorizacao.md
 
 ## 14. Resumo do Fluxo de Dados
 
-O fluxo de dados do projeto segue a arquitetura medalhão, saindo dos arquivos originais, passando por camadas de tratamento e chegando a uma tabela final preparada para análise de negócio.
-
-| Etapa                  | Entrada                                                                               | Processamento                                                                                  | Saída                                                                     |
-| ---------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Raw                    | `application_train.csv`                                                               | Arquivo original de cadastro de clientes                                                       | Dados cadastrais brutos                                                   |
-| Raw                    | `installments_payments.csv`                                                           | Arquivo original de parcelas e pagamentos                                                      | Histórico bruto de pagamentos                                             |
-| Bronze                 | Arquivos CSV da Raw                                                                   | Conversão para Parquet, mantendo estrutura próxima da origem                                   | `bronze_clientes_cadastro.parquet` e `bronze_pagamentos_parcelas.parquet` |
-| Silver - Clientes      | `bronze_clientes_cadastro.parquet`                                                    | Tradução, padronização, tratamento de cadastro e criação de indicadores cadastrais             | `silver_clientes_cadastro.parquet`                                        |
-| Silver - Pagamentos    | `bronze_pagamentos_parcelas.parquet`                                                  | Cálculo de atraso, antecipação, status de pagamento e status de valor pago                     | `silver_pagamentos_parcelas.parquet`                                      |
-| Silver - Comportamento | `silver_pagamentos_parcelas.parquet`                                                  | Agregação do histórico de pagamentos por cliente, cálculo de métricas e classificação de risco | `silver_comportamento_pagamento_cliente.parquet`                          |
-| Gold                   | `silver_comportamento_pagamento_cliente.parquet` + `silver_clientes_cadastro.parquet` | Enriquecimento com cadastro, definição de prioridade, ação recomendada e canal sugerido        | `gold_indicadores_cliente.parquet`                                        |
-| Consumo                | `gold_indicadores_cliente.parquet`                                                    | Análise de negócio, visualização e explicação dos indicadores                                  | Power BI e futura camada de IA/RAG                                        |
+O fluxo de dados do projeto segue a arquitetura medalhão, organizando os dados em camadas até chegar em uma visão final preparada para análise de negócio.
 
 ---
 
-### Visão Simplificada
+### 14.1 Entrada dos Dados
+
+O pipeline começa com dois arquivos originais na camada Raw:
+
+```text
+data/raw/application_train.csv
+data/raw/installments_payments.csv
+```
+
+O arquivo `application_train.csv` contém informações cadastrais dos clientes.
+
+O arquivo `installments_payments.csv` contém o histórico de parcelas e pagamentos.
+
+---
+
+### 14.2 Conversão para Bronze
+
+Na camada Bronze, os arquivos originais são convertidos para Parquet, mantendo a estrutura próxima da origem.
+
+Arquivos gerados:
+
+```text
+data/bronze/bronze_clientes_cadastro.parquet
+data/bronze/bronze_pagamentos_parcelas.parquet
+```
+
+Objetivo da Bronze:
+
+```text
+preservar rastreabilidade com os dados originais
+```
+
+---
+
+### 14.3 Tratamento na Silver
+
+Na camada Silver, os dados são traduzidos, padronizados e enriquecidos com regras de negócio.
+
+Arquivos gerados:
+
+```text
+data/silver/silver_clientes_cadastro.parquet
+data/silver/silver_pagamentos_parcelas.parquet
+data/silver/silver_comportamento_pagamento_cliente.parquet
+```
+
+A Silver de clientes trata os dados cadastrais.
+
+A Silver de pagamentos calcula atraso, antecipação, status de pagamento e status de valor pago.
+
+A Silver de comportamento consolida o histórico de pagamentos por cliente e cria métricas como taxa de atraso, maior atraso, perfil de pagamento e nível de risco.
+
+---
+
+### 14.4 Consolidação na Gold
+
+A camada Gold une comportamento de pagamento e cadastro para criar uma visão final por cliente.
+
+Arquivo final:
+
+```text
+data/gold/gold_indicadores_cliente.parquet
+```
+
+Essa tabela contém os principais campos de negócio:
+
+```text
+nivel_risco
+perfil_pagamento
+prioridade_contato
+flg_priorizar_contato
+acao_recomendada
+canal_sugerido
+status_cadastro
+valor_previsto_total_priorizado
+```
+
+A Gold é a principal fonte para análise no Power BI.
+
+---
+
+### 14.5 Consumo Analítico
+
+A tabela Gold pode ser consumida por:
+
+```text
+Power BI
+Futura camada de IA/RAG
+```
+
+No Power BI, ela apoia visualizações sobre risco, prioridade, ação recomendada, canal sugerido e cobertura cadastral.
+
+Na futura camada de IA/RAG, ela poderá apoiar perguntas em linguagem natural e explicações sobre as regras de negócio.
+
+---
+
+### 14.6 Visão Simplificada do Pipeline
 
 ```text
 application_train.csv
@@ -655,14 +740,14 @@ gold_indicadores_cliente.parquet
 Power BI / IA-RAG
 ```
 
-A Gold final une comportamento de pagamento e cadastro para entregar uma visão analítica por cliente.
-
-O arquivo principal para consumo é:
+Resumo da lógica:
 
 ```text
-data/gold/gold_indicadores_cliente.parquet
+cadastro + comportamento de pagamento
+        ↓
+indicadores por cliente
+        ↓
+risco, prioridade, ação recomendada e canal sugerido
 ```
 
-Essa tabela concentra os campos necessários para análise de risco, priorização de contato, ação recomendada, canal sugerido e cobertura cadastral.
-
-
+A Gold final entrega uma visão analítica orientada à ação.

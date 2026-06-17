@@ -524,7 +524,7 @@ scripts/
 
 * Criar dashboard com indicadores de risco, prioridade e ação recomendada;
 * Criar pasta `dashboard/` com prints ou arquivo `.pbix`;
-* Criar documentação do agente em `docs/06_ia_agent_design.md`;
+* Criar documentação do agente em `docs/06_desenho_agente_ia.md`;
 * Criar protótipo do agente em `ia_agents/`;
 * Atualizar o README com imagens do dashboard.
 

@@ -467,7 +467,7 @@ O agente poderá usar:
 gold_indicadores_cliente.parquet
 docs/09_dicionario_gold_indicadores_cliente.md
 docs/10_regras_negocio_priorizacao.md
-docs/07_business_question_mapping.md
+docs/07_mapeamento_perguntas_negocio.md
 ```
 
 ---

@@ -122,17 +122,17 @@ data/gold/gold_indicadores_cliente.parquet
 Documentos principais:
 
 ```text
-docs/01_business_understand.md
-docs/02_data_catalog.md
-docs/03_data_dictionary.md
-docs/04_architecture.md
-docs/05_gold_metrics.md
-docs/06_ia_agent_design.md
-docs/07_business_question_mapping.md
-docs/08_pipeline_etapas.md
+docs/01_entendimento_negocio.md
+docs/02_catalogo_dados.md
+docs/03_dicionario_dados.md
+docs/04_arquitetura.md
+docs/05_metricas_gold.md
+docs/06_desenho_agente_ia.md
+docs/07_mapeamento_perguntas_negocio.md
+docs/08_etapas_pipeline.md
 docs/09_dicionario_gold_indicadores_cliente.md
 docs/10_regras_negocio_priorizacao.md
-docs/PROJECT_STATUS.md
+docs/STATUS_PROJETO.md
 ```
 
 ---

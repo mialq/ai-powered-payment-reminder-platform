@@ -5,7 +5,6 @@ data/silver/*
 data/gold/*
 
 # Arquivos grandes
-*.csv
 *.parquet
 
 # Python
@@ -17,7 +16,23 @@ __pycache__/
 venv/
 env/
 
-# Jupyter
+# Segredos
+.env
+.env.*
+*.key
+
+*.pbix
+gold_base_*.csv
+gold_indicadores_*.csv
+
+# Dados pesados
+data/raw/*.csv
+data/bronze/*.parquet
+data/silver/*.parquet
+data/gold/*.parquet
+
+# Logs e temporários
+*.log
 .ipynb_checkpoints/
 
 # Variáveis de ambiente

@@ -1,4 +1,4 @@
-# AI-Powered Payment Reminder & Delinquency Prevention Platform
+# Priorização de Clientes para Lembretes de Pagamento
 
 ## Visão Geral
 
@@ -8,9 +8,22 @@ Este projeto nasceu a partir de uma pergunta de negócio sobre como a área de d
 
 A partir dessa pergunta, foi construída uma solução de Engenharia de Dados e Analytics com foco em transformar dados brutos de pagamentos e cadastro de clientes em uma base analítica confiável, organizada em camadas Raw, Bronze, Silver e Gold.
 
-O projeto cria um pipeline rastreável, padronizado e orientado ao negócio, gerando métricas como atraso de pagamento, taxa de atraso por cliente, perfil de comportamento, nível de risco, prioridade de contato e ação recomendada.
+Com a evolução do projeto, a solução passou a incorporar também uma camada inteligente de priorização e recomendação operacional, capaz de combinar prazo para vencimento, risco de atraso, histórico de pagamento e elegibilidade para automação.
 
-A camada Gold final pode ser utilizada em dashboards no Power BI e, futuramente, como base para um agente de IA com RAG capaz de responder perguntas sobre o comportamento dos clientes e sugerir estratégias de lembrete preventivo.
+Atualmente, o projeto entrega:
+
+* pipeline rastreável e padronizado de dados
+* base analítica final para consumo no Power BI
+* dashboard executivo para análise de vencimento, risco e estratégia de contato
+* camada inteligente de decisão para priorização de clientes
+* recomendação operacional com prioridade, ação sugerida, canal e status de automação
+
+Como evolução futura, a solução poderá incorporar LLM e RAG para geração textual e apoio adicional à tomada de decisão.
+
+## Objetivo
+
+Desenvolver uma solução analítica para priorizar clientes em ações de lembrete de pagamento, considerando risco de atraso, prazo para vencimento, comportamento histórico e regras de elegibilidade para contato automático.
+
 
 ---
 
@@ -131,21 +144,55 @@ flowchart TD
 
 ---
 
+## Camadas Analíticas Finais
+
+Na etapa atual do projeto, a camada Gold passou a conter não apenas indicadores históricos do cliente, mas também a base de priorização operacional e a entrada consolidada da camada inteligente.
+
+### Principais saídas analíticas
+
+- `gold_indicadores_cliente.parquet`  
+  Base histórica consolidada por cliente, com métricas como percentual de atraso, atraso médio, quantidade de não pagos e valor em aberto.
+
+- `gold_base_lembrete_vencimento_simulada.parquet`  
+  Base simulada com foco operacional, incluindo prazo para vencimento, faixa de vencimento, grupo de negócio, nível de risco, elegibilidade para envio, ação recomendada e mensagem sugerida.
+
+- `gold_ai_input_cliente.parquet`  
+  Base consolidada para consumo da camada inteligente, unindo dados atuais do lembrete com histórico de comportamento do cliente.
+
+- `gold_ai_recomendacoes_cliente.parquet`  
+  Base final da recomendação operacional, contendo prioridade final, status da automação, necessidade de revisão humana, canal sugerido e ação recomendada.
+
 ## Pipeline de Scripts
 
-| Etapa | Script                                       | Descrição                                                       |
-| ----- | -------------------------------------------- | --------------------------------------------------------------- |
-| 01    | `01_origem_para_bronze.py`                   | Converte os arquivos CSV da camada Raw para Parquet na Bronze   |
-| 02    | `02_validar_bronze_arquivos.py`              | Valida existência, volume, schema e amostra dos arquivos Bronze |
-| 03    | `03_bronze_para_silver_pagamentos.py`        | Trata histórico de pagamentos e cria a Silver de pagamentos     |
-| 04    | `04_validar_silver_pagamentos.py`            | Valida a Silver de pagamentos                                   |
-| 05    | `05_bronze_para_silver_clientes.py`          | Trata cadastro de clientes e cria a Silver de clientes          |
-| 06    | `06_validar_silver_clientes.py`              | Valida a Silver de clientes                                     |
-| 07    | `07_criar_silver_comportamento_cliente.py`   | Consolida comportamento de pagamento por cliente                |
-| 08    | `08_validar_silver_comportamento_cliente.py` | Valida a Silver de comportamento por cliente                    |
-| 09    | `09_criar_gold_indicadores_cliente.py`       | Cria a Gold final de indicadores por cliente                    |
-| 10    | `10_validar_gold_indicadores_cliente.py`     | Valida a Gold final                                             |
+## Pipeline de Processamento
 
+O pipeline do projeto foi estruturado em etapas progressivas de transformação e enriquecimento dos dados, desde a origem até a recomendação operacional final.
+
+### Principais scripts do projeto
+
+- `01_origem_para_bronze.py`  
+  Leitura das bases originais e preparação inicial da camada Bronze.
+
+- `03_bronze_para_silver_pagamentos.py`  
+  Tratamento e padronização dos dados de pagamentos.
+
+- `05_bronze_para_silver_clientes.py`  
+  Tratamento e padronização dos dados cadastrais dos clientes.
+
+- `09_criar_gold_indicadores_cliente.py`  
+  Geração da base histórica consolidada por cliente.
+
+- `11_criar_gold_base_lembrete_vencimento_simulada.py`  
+  Geração da base operacional simulada para priorização de lembretes de pagamento.
+
+- `06_gold_to_ai_input_cliente.py`  
+  Consolidação da entrada da camada inteligente, unindo a base operacional atual com o histórico do cliente.
+
+- `07_gerar_recomendacoes_ia_cliente.py`  
+  Geração da recomendação operacional final, incluindo prioridade, canal sugerido, ação recomendada e status da automação.
+
+- `12_validar_gold_ai_recomendacoes_cliente.py`  
+  Script de validação da base final de recomendações, incluindo conferência da linha de teste e amostras operacionais.
 ---
 
 ## Principal Regra de Negócio
@@ -410,27 +457,100 @@ O objetivo do dashboard é permitir que a área de negócio visualize rapidament
 
 ---
 
+## Camada Inteligente de Priorização
+
+Após a construção das camadas analíticas e do dashboard em Power BI, o projeto evoluiu para uma camada inteligente de decisão operacional.
+
+Essa camada foi implementada para transformar a análise em ação prática, permitindo identificar quais clientes podem seguir para automação, quais precisam de revisão humana e qual abordagem faz mais sentido para cada perfil.
+
+### O que essa camada entrega
+
+- consolidação da entrada da camada inteligente em `gold_ai_input_cliente.parquet`
+- geração da saída final de recomendação em `gold_ai_recomendacoes_cliente.parquet`
+- definição de prioridade final por cliente
+- definição de canal sugerido
+- definição de ação recomendada
+- definição do status da automação
+- identificação de casos bloqueados para revisão humana
+
+### Bases finais da camada inteligente
+
+- `gold_ai_input_cliente.parquet`  
+  Base consolidada de entrada da camada inteligente, reunindo dados atuais do lembrete e histórico do cliente.
+
+- `gold_ai_recomendacoes_cliente.parquet`  
+  Base final com recomendação operacional, incluindo prioridade final, canal sugerido, ação recomendada, status da automação e necessidade de revisão humana.
+
+### Validação implementada
+
+A camada inteligente foi validada por meio de:
+
+- geração da base final de recomendações
+- validação da linha de teste com cliente fictício
+- conferência de amostras operacionais
+- separação entre clientes prontos para acionamento e clientes bloqueados
+
+### Exemplos de decisão da solução
+
+A solução já consegue distinguir cenários como:
+
+- clientes prontos para acionamento automático
+- clientes bloqueados por ausência de cadastro válido
+- clientes bloqueados por risco desconhecido
+- clientes com maior prioridade por combinação de vencimento próximo e histórico de atraso.
+
 ## AI Agent, RAG and LLM Layer
 
-A camada de IA será utilizada futuramente para transformar os dados tratados e a documentação do projeto em respostas de negócio mais contextualizadas.
+A etapa atual do projeto já implementa uma camada inteligente de recomendação operacional baseada em regras de negócio e dados históricos do cliente.
 
-A proposta é que o agente consiga responder perguntas como:
+Nesta versão, a solução já é capaz de:
 
-```text
-Por que este cliente foi classificado como alto_risco?
-```
+- priorizar clientes para lembretes de pagamento
+- sugerir ação recomendada por perfil
+- definir status da automação
+- identificar casos que exigem revisão humana
+- estruturar a base final para futura geração textual com LLM
 
-```text
-Qual estratégia de lembrete é mais adequada para clientes de medio_risco?
-```
+### Estado atual da solução
 
-```text
-Quais fatores contribuíram para o risco de atraso?
-```
+Atualmente, a camada de decisão operacional está implementada em Python e gera saídas finais para apoio à operação, com foco em:
 
-```text
-Qual mensagem preventiva poderia ser enviada para este cliente?
-```
+- prioridade final
+- canal sugerido
+- ação recomendada
+- status de automação
+- necessidade de revisão humana
+
+### Evolução futura com LLM
+
+Como próxima evolução, a solução poderá incorporar um modelo generativo para refinar:
+
+- mensagem_sugerida_llm
+- justificativa_llm
+
+Nessa etapa futura, a IA generativa será utilizada para transformar a saída operacional em mensagens mais naturais e justificativas mais contextuais, mantendo a decisão principal ancorada em regras e dados estruturados.
+
+### Evolução futura com RAG
+
+A arquitetura também poderá evoluir para uma abordagem com RAG, utilizando documentos de negócio como:
+
+- política de comunicação
+- regras de elegibilidade
+- critérios de priorização
+- tratamento de clientes bloqueados
+- diretrizes de tom de mensagem
+
+Com isso, a IA poderá gerar respostas mais fundamentadas e alinhadas às regras da solução.
+
+### Evolução futura com agente de IA
+
+Em uma etapa posterior, a solução poderá ser expandida para um agente de IA responsável por:
+
+- consumir a base consolidada por cliente
+- consultar regras e documentação
+- gerar mensagem final
+- justificar a recomendação
+- apoiar a orquestração operacional da comunicação preventiva
 
 ### Papel do RAG
 
@@ -496,50 +616,68 @@ scripts/
 
 ## Roadmap do Projeto
 
-### Concluído
+A evolução do projeto foi organizada em etapas progressivas, partindo da engenharia de dados até a camada inteligente de recomendação operacional.
 
-* Entendimento do problema de negócio;
-* Estruturação da arquitetura Raw, Bronze, Silver e Gold;
-* Pipeline Raw para Bronze;
-* Validação da Bronze;
-* Pipeline Bronze para Silver de pagamentos;
-* Validação da Silver de pagamentos;
-* Pipeline Bronze para Silver de clientes;
-* Validação da Silver de clientes;
-* Criação da Silver de comportamento por cliente;
-* Validação da Silver de comportamento;
-* Criação da Gold de indicadores por cliente;
-* Validação da Gold final;
-* Publicação inicial no GitHub.
+### Etapas já implementadas
 
-### Em desenvolvimento
+* ingestão e padronização dos dados em camadas Raw, Bronze, Silver e Gold
+* construção da base histórica consolidada por cliente
+* criação da base simulada para priorização de lembretes de pagamento
+* desenvolvimento do dashboard executivo em Power BI
+* implementação da camada inteligente de decisão operacional
+* geração das bases `gold_ai_input_cliente.parquet` e `gold_ai_recomendacoes_cliente.parquet`
+* validação da recomendação final com cliente fictício e amostras operacionais
 
-* Dashboard no Power BI;
-* Documentação visual da arquitetura;
-* Dicionário de dados da Gold;
-* Design do agente de IA;
-* Implementação futura de RAG com documentação do projeto.
+### Etapa atual
 
-### Próximas entregas
+Na etapa atual, o projeto já é capaz de transformar dados históricos e operacionais em recomendações acionáveis para a régua de lembretes de pagamento, com foco em:
 
-* Criar dashboard com indicadores de risco, prioridade e ação recomendada;
-* Criar pasta `dashboard/` com prints ou arquivo `.pbix`;
-* Criar documentação do agente em `docs/06_desenho_agente_ia.md`;
-* Criar protótipo do agente em `ia_agents/`;
-* Atualizar o README com imagens do dashboard.
+* priorização de clientes
+* recomendação de ação
+* sugestão de canal
+* definição do status da automação
+* identificação de casos que exigem revisão humana
+
+### Próximas evoluções
+
+Como evolução futura, o projeto poderá incorporar:
+
+* geração textual com LLM para mensagens e justificativas
+* uso de RAG para consulta de regras e documentação de negócio
+* agente de IA para orquestração da recomendação ponta a ponta
+* expansão da camada analítica com novos critérios de priorização
+* publicação do dashboard em ambiente compartilhado
 
 ---
 
 ## Possíveis Usos
 
-A solução pode ser utilizada para:
+A solução desenvolvida neste projeto pode ser aplicada em diferentes contextos de negócio que dependem de priorização de clientes e comunicação preventiva.
 
-* criar dashboards no Power BI;
-* segmentar clientes por risco;
-* apoiar estratégias de lembrete preventivo;
-* priorizar clientes com maior probabilidade de atraso;
-* identificar cobertura cadastral dos clientes com histórico de pagamento;
-* apoiar ações de relacionamento com clientes de baixo risco;
-* alimentar um agente de IA com contexto de negócio e dados tratados.
+### Aplicações diretas
+
+* operações de lembrete de pagamento antes do vencimento
+* priorização de clientes com maior risco de atraso
+* identificação de casos elegíveis para automação
+* separação de clientes que exigem revisão humana antes de qualquer contato
+* apoio à régua de comunicação preventiva por perfil de cliente
+
+### Aplicações analíticas
+
+* análise do comportamento histórico de pagamento
+* segmentação de clientes por risco de atraso
+* construção de indicadores operacionais para cobrança preventiva
+* apoio à tomada de decisão em áreas de dados, CRM e cobrança
+* acompanhamento de clientes com vencimento próximo e maior criticidade
+
+### Evoluções possíveis
+
+A arquitetura do projeto também permite expansão para cenários como:
+
+* geração textual de mensagens e justificativas com LLM
+* uso de RAG para consulta de regras e políticas de negócio
+* criação de agente de IA para orquestração operacional
+* recomendação mais personalizada por canal, prazo e perfil
+* integração com fluxos automatizados de comunicação
 
 ---

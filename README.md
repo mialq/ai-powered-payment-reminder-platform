@@ -12,18 +12,17 @@ Com a evolução do projeto, a solução passou a incorporar também uma camada 
 
 Atualmente, o projeto entrega:
 
-* pipeline rastreável e padronizado de dados
-* base analítica final para consumo no Power BI
-* dashboard executivo para análise de vencimento, risco e estratégia de contato
-* camada inteligente de decisão para priorização de clientes
-* recomendação operacional com prioridade, ação sugerida, canal e status de automação
+- pipeline rastreável e padronizado de dados
+- base analítica final para consumo no Power BI
+- dashboard executivo para análise de vencimento, risco e estratégia de contato
+- camada inteligente de decisão para priorização de clientes
+- recomendação operacional com prioridade, ação sugerida, canal e status de automação
 
 Como evolução futura, a solução poderá incorporar LLM e RAG para geração textual e apoio adicional à tomada de decisão.
 
 ## Objetivo
 
 Desenvolver uma solução analítica para priorizar clientes em ações de lembrete de pagamento, considerando risco de atraso, prazo para vencimento, comportamento histórico e regras de elegibilidade para contato automático.
-
 
 ---
 
@@ -87,19 +86,22 @@ silver_comportamento_pagamento_cliente.parquet
 
 ### Gold
 
-Camada analítica final para consumo no Power BI e análise de negócio.
+Camada analítica final para consumo no Power BI, priorização operacional e apoio à camada inteligente.
 
-Arquivo gerado:
+Arquivos gerados:
 
 ```text
 gold_indicadores_cliente.parquet
+gold_base_lembrete_vencimento_simulada.parquet
+gold_ai_input_cliente.parquet
+gold_ai_recomendacoes_cliente.parquet
 ```
 
 ---
 
 ## Arquitetura da Solução
 
-A solução foi pensada como uma plataforma analítica em camadas, partindo dos dados brutos até o consumo por áreas de negócio e, futuramente, por um agente de IA.
+A solução foi pensada como uma arquitetura analítica em camadas, partindo dos dados brutos até a recomendação operacional final, com evolução futura para LLM, RAG e agente de IA.
 
 ```mermaid
 flowchart TD
@@ -109,38 +111,48 @@ flowchart TD
     C1 --> C3[Silver - Comportamento de Pagamento por Cliente]
     C2 --> D[Gold - Indicadores por Cliente]
     C3 --> D
-    D --> E[Power BI Dashboard]
-    D --> F[AI Agent / RAG - Futuro]
-    G[Business Documentation] --> F
-    H[Regras de Risco e Priorização] --> F
-    F --> I[Recomendação de Lembrete Preventivo]
+    D --> E[Gold - Base de Lembrete Simulada]
+    E --> F[Gold - AI Input Cliente]
+    F --> G[Gold - AI Recomendações Cliente]
+    D --> H[Power BI Dashboard]
+    G --> H
+    I[Documentos de Regras e Comunicação] --> J[RAG - Futuro]
+    G --> K[LLM - Futuro]
+    J --> K
+    K --> L[Mensagem e Justificativa Geradas]
 ```
 
 ### Fluxo da solução
 
-1. **Raw**
+1. **Raw**  
    Armazena os arquivos originais em CSV.
 
-2. **Bronze**
+2. **Bronze**  
    Converte os dados brutos para Parquet, preservando a estrutura original.
 
-3. **Silver de pagamentos**
+3. **Silver de pagamentos**  
    Padroniza o histórico de pagamentos, cria status de pagamento, flags de atraso, antecipação, nulos críticos e diferenças financeiras.
 
-4. **Silver de clientes**
+4. **Silver de clientes**  
    Padroniza o cadastro de clientes, traduz campos categóricos, cria variáveis de perfil e flags de qualidade.
 
-5. **Silver de comportamento por cliente**
+5. **Silver de comportamento por cliente**  
    Consolida o histórico de pagamentos em nível de cliente, criando taxa de atraso, maior atraso, perfil de pagamento e nível de risco.
 
-6. **Gold de indicadores por cliente**
-   Junta comportamento de pagamento com cadastro de clientes, cria prioridade de contato, ação recomendada, canal sugerido e grupo de negócio.
+6. **Gold de indicadores por cliente**  
+   Junta comportamento de pagamento com cadastro de clientes e cria indicadores analíticos para consumo de negócio.
 
-7. **Power BI**
-   Camada de visualização dos indicadores de risco, prioridade, comportamento de pagamento e cobertura cadastral.
+7. **Gold de lembrete operacional**  
+   Gera a base simulada para priorização de lembretes de pagamento, com foco em prazo, risco, elegibilidade e ação sugerida.
 
-8. **AI Agent / RAG**
-   Camada futura para responder perguntas de negócio e recomendar estratégias de lembrete com base nos dados tratados e documentação do projeto.
+8. **Camada inteligente de priorização**  
+   Consolida a entrada da camada inteligente e gera a recomendação operacional final com prioridade, canal, ação recomendada e status da automação.
+
+9. **Power BI**  
+   Camada de visualização dos indicadores de risco, prioridade, comportamento de pagamento, elegibilidade e recomendação operacional.
+
+10. **LLM / RAG / Agente**  
+    Camada futura para geração textual, recuperação de regras e orquestração ponta a ponta da recomendação.
 
 ---
 
@@ -162,7 +174,7 @@ Na etapa atual do projeto, a camada Gold passou a conter não apenas indicadores
 - `gold_ai_recomendacoes_cliente.parquet`  
   Base final da recomendação operacional, contendo prioridade final, status da automação, necessidade de revisão humana, canal sugerido e ação recomendada.
 
-## Pipeline de Scripts
+---
 
 ## Pipeline de Processamento
 
@@ -193,6 +205,7 @@ O pipeline do projeto foi estruturado em etapas progressivas de transformação 
 
 - `12_validar_gold_ai_recomendacoes_cliente.py`  
   Script de validação da base final de recomendações, incluindo conferência da linha de teste e amostras operacionais.
+
 ---
 
 ## Principal Regra de Negócio
@@ -205,11 +218,11 @@ dif_dias_vencimento = dias_pagamento_ref - dias_previsto_ref
 
 Interpretação:
 
-|                 Resultado | Significado          |
-| ------------------------: | -------------------- |
+| Resultado | Significado |
+|---------:|-------------|
 | `dif_dias_vencimento < 0` | Pagamento antecipado |
-| `dif_dias_vencimento = 0` | Pagamento no prazo   |
-| `dif_dias_vencimento > 0` | Pagamento em atraso  |
+| `dif_dias_vencimento = 0` | Pagamento no prazo |
+| `dif_dias_vencimento > 0` | Pagamento em atraso |
 
 A partir dessa regra, foram criados campos específicos para evitar distorções nos indicadores:
 
@@ -230,12 +243,12 @@ A Silver de pagamentos possui 13.605.401 registros.
 
 Distribuição por status de pagamento:
 
-| Status de pagamento      |     Total |
-| ------------------------ | --------: |
-| pago_antecipado          | 9.309.477 |
-| pago_no_prazo            | 3.146.350 |
-| pago_em_atraso           | 1.146.669 |
-| sem_pagamento_registrado |     2.905 |
+| Status de pagamento | Total |
+|---------------------|------:|
+| pago_antecipado | 9.309.477 |
+| pago_no_prazo | 3.146.350 |
+| pago_em_atraso | 1.146.669 |
+| sem_pagamento_registrado | 2.905 |
 
 Taxa geral de atraso encontrada:
 
@@ -292,23 +305,23 @@ Total de clientes com comportamento de pagamento:
 
 Distribuição por nível de risco:
 
-| Nível de risco     | Total de clientes |
-| ------------------ | ----------------: |
-| baixo_risco        |           210.109 |
-| medio_risco        |            92.276 |
-| alto_risco         |            37.193 |
-| risco_desconhecido |                 9 |
+| Nível de risco | Total de clientes |
+|----------------|------------------:|
+| baixo_risco | 210.109 |
+| medio_risco | 92.276 |
+| alto_risco | 37.193 |
+| risco_desconhecido | 9 |
 
 Distribuição por perfil de pagamento:
 
-| Perfil de pagamento        | Total de clientes |
-| -------------------------- | ----------------: |
-| pagador_antecipado         |           151.500 |
-| baixo_atraso               |            87.939 |
-| atraso_moderado            |            71.455 |
-| alto_atraso                |            20.451 |
-| pagador_no_prazo           |             8.233 |
-| comportamento_desconhecido |                 9 |
+| Perfil de pagamento | Total de clientes |
+|---------------------|------------------:|
+| pagador_antecipado | 151.500 |
+| baixo_atraso | 87.939 |
+| atraso_moderado | 71.455 |
+| alto_atraso | 20.451 |
+| pagador_no_prazo | 8.233 |
+| comportamento_desconhecido | 9 |
 
 A validação também mediu a cobertura com a Silver de clientes:
 
@@ -322,15 +335,18 @@ pct_clientes_com_cadastro: 85,88%
 
 ## Resultado da Camada Gold
 
-A camada Gold final consolida comportamento de pagamento, cadastro de clientes e regras de priorização de contato.
+A camada Gold final consolida comportamento de pagamento, cadastro de clientes, priorização operacional e bases de consumo da camada inteligente.
 
-Arquivo final:
+Arquivos finais:
 
 ```text
 data/gold/gold_indicadores_cliente.parquet
+data/gold/gold_base_lembrete_vencimento_simulada.parquet
+data/gold/gold_ai_input_cliente.parquet
+data/gold/gold_ai_recomendacoes_cliente.parquet
 ```
 
-Total de clientes na Gold:
+Total de clientes na base final de recomendação:
 
 ```text
 339.587
@@ -338,45 +354,38 @@ Total de clientes na Gold:
 
 Cobertura cadastral:
 
-| Status de cadastro   | Total de clientes |
-| -------------------- | ----------------: |
-| cliente_com_cadastro |           291.643 |
-| cliente_sem_cadastro |            47.944 |
+| Status de cadastro | Total de clientes |
+|--------------------|------------------:|
+| cliente_com_cadastro | 291.643 |
+| cliente_sem_cadastro | 47.944 |
 
-Clientes priorizados para contato:
+Clientes por status da automação:
 
-```text
-129.478
-```
+| Status da automação | Total de clientes |
+|---------------------|------------------:|
+| pronto_para_acionamento | 291.635 |
+| bloqueado | 47.952 |
 
-Distribuição por nível de risco:
+Distribuição por prioridade final:
 
-| Nível de risco     | Clientes | Priorizados |
-| ------------------ | -------: | ----------: |
-| baixo_risco        |  210.109 |           0 |
-| medio_risco        |   92.276 |      92.276 |
-| alto_risco         |   37.193 |      37.193 |
-| risco_desconhecido |        9 |           9 |
+| Prioridade final | Total de clientes |
+|------------------|------------------:|
+| media | 147.202 |
+| baixa | 71.645 |
+| media_alta | 61.861 |
+| bloqueada | 47.952 |
+| alta | 10.927 |
 
-Distribuição por prioridade de contato:
+Distribuição por ação recomendada pela camada inteligente:
 
-| Prioridade de contato | Total de clientes |
-| --------------------- | ----------------: |
-| prioridade_baixa      |           210.109 |
-| prioridade_media      |            92.276 |
-| prioridade_maxima     |            23.707 |
-| prioridade_alta       |            13.486 |
-| prioridade_revisao    |                 9 |
-
-Distribuição por ação recomendada:
-
-| Ação recomendada              | Total de clientes |
-| ----------------------------- | ----------------: |
-| comunicacao_relacionamento    |           151.500 |
-| lembrete_preventivo_padrao    |            92.276 |
-| lembrete_suave                |            58.609 |
-| lembrete_preventivo_reforcado |            37.193 |
-| revisar_dados_pagamento       |                 9 |
+| Ação recomendada | Total de clientes |
+|------------------|------------------:|
+| lembrete_suave | 167.212 |
+| lembrete_preventivo | 61.861 |
+| contato_relacional | 51.635 |
+| revisao_cadastral | 47.944 |
+| lembrete_reforcado | 10.927 |
+| revisao_regra_risco | 8 |
 
 ---
 
@@ -404,7 +413,9 @@ status_cadastro = cliente_com_cadastro
 
 ## Indicadores da Gold
 
-A tabela Gold possui uma linha por cliente e contém campos como:
+A camada Gold passou a conter uma combinação de indicadores históricos, atributos operacionais e saídas da recomendação final.
+
+Exemplos de campos utilizados:
 
 ```text
 id_cliente
@@ -424,36 +435,40 @@ flg_priorizar_contato
 acao_recomendada
 grupo_negocio
 valor_previsto_total_priorizado
+prioridade_final
+status_automacao
+necessita_revisao_humana
 ```
 
 ---
 
 ## Power BI Layer
 
-A camada Gold será utilizada como fonte principal para criação de um dashboard no Power BI.
+A camada analítica do projeto é utilizada como fonte para criação do dashboard executivo em Power BI.
 
-Arquivo de entrada:
+Principais bases consumidas:
 
 ```text
 data/gold/gold_indicadores_cliente.parquet
+data/gold/gold_base_lembrete_vencimento_simulada.parquet
 ```
 
 Indicadores sugeridos para o dashboard:
 
-* total de clientes analisados;
-* clientes por nível de risco;
-* clientes por prioridade de contato;
-* clientes por ação recomendada;
-* clientes com e sem cadastro;
-* percentual de clientes priorizados;
-* valor previsto total priorizado;
-* distribuição por perfil de pagamento;
-* distribuição por faixa de renda;
-* distribuição por faixa etária;
-* canal sugerido para contato;
-* clientes de alto risco com maior atraso histórico.
+- total de clientes analisados
+- clientes por nível de risco
+- clientes por prioridade de contato
+- clientes por ação recomendada
+- clientes com e sem cadastro
+- percentual de clientes priorizados
+- valor previsto total priorizado
+- distribuição por perfil de pagamento
+- distribuição por faixa de renda
+- distribuição por faixa etária
+- canal sugerido para contato
+- clientes de alto risco com maior atraso histórico
 
-O objetivo do dashboard é permitir que a área de negócio visualize rapidamente quais grupos de clientes exigem maior atenção antes do vencimento.
+O objetivo do dashboard é permitir que a área de negócio visualize rapidamente quais grupos de clientes exigem maior atenção antes do vencimento e quais estratégias de contato fazem mais sentido para cada perfil.
 
 ---
 
@@ -497,7 +512,9 @@ A solução já consegue distinguir cenários como:
 - clientes prontos para acionamento automático
 - clientes bloqueados por ausência de cadastro válido
 - clientes bloqueados por risco desconhecido
-- clientes com maior prioridade por combinação de vencimento próximo e histórico de atraso.
+- clientes com maior prioridade por combinação de vencimento próximo e histórico de atraso
+
+---
 
 ## AI Agent, RAG and LLM Layer
 
@@ -532,15 +549,14 @@ Nessa etapa futura, a IA generativa será utilizada para transformar a saída op
 
 ### Evolução futura com RAG
 
-A arquitetura também poderá evoluir para uma abordagem com RAG, utilizando documentos de negócio como:
+A arquitetura poderá evoluir para uma abordagem com RAG, utilizando documentos de negócio como:
 
 - política de comunicação
-- regras de elegibilidade
-- critérios de priorização
+- regras de priorização
 - tratamento de clientes bloqueados
 - diretrizes de tom de mensagem
 
-Com isso, a IA poderá gerar respostas mais fundamentadas e alinhadas às regras da solução.
+Esses documentos já começaram a ser estruturados na pasta `docs/rag/`, preparando a solução para respostas mais fundamentadas e alinhadas às regras do projeto.
 
 ### Evolução futura com agente de IA
 
@@ -552,41 +568,25 @@ Em uma etapa posterior, a solução poderá ser expandida para um agente de IA r
 - justificar a recomendação
 - apoiar a orquestração operacional da comunicação preventiva
 
-### Papel do RAG
-
-O RAG será usado para recuperar informações relevantes da documentação do projeto, como:
-
-* regras de classificação de risco;
-* definição das métricas;
-* explicação das camadas Bronze, Silver e Gold;
-* critérios de negócio para lembretes preventivos;
-* dicionário de dados da Gold.
-
-Com isso, o agente de IA poderá gerar respostas mais rastreáveis e alinhadas às regras do projeto.
-
-### Papel do LLM
-
-O LLM será responsável por interpretar a pergunta do usuário, consultar o contexto recuperado pelo RAG e gerar uma resposta em linguagem natural.
-
-Exemplo de resposta esperada:
-
-```text
-Este cliente foi classificado como alto_risco porque possui alta taxa de atraso e já apresentou atraso máximo superior a 30 dias. Para esse perfil, recomenda-se envio de lembrete preventivo reforçado antes do vencimento.
-```
-
 ---
 
 ## Stack Utilizada
 
-* Python
-* DuckDB
-* Parquet
-* VS Code
-* Power BI
-* Git
-* GitHub
-* OpenAI
-* RAG
+### Tecnologias já utilizadas
+
+- Python
+- DuckDB
+- Parquet
+- VS Code
+- Power BI
+- Git
+- GitHub
+
+### Evolução futura prevista
+
+- LLM
+- RAG
+- Agente de IA
 
 ---
 
@@ -599,6 +599,13 @@ data/
 ├── silver/
 └── gold/
 
+docs/
+└── rag/
+    ├── 01_politica_comunicacao.md
+    ├── 02_regras_priorizacao.md
+    ├── 03_tratamento_clientes_bloqueados.md
+    └── 04_tom_mensagem.md
+
 scripts/
 ├── 01_origem_para_bronze.py
 ├── 02_validar_bronze_arquivos.py
@@ -609,7 +616,12 @@ scripts/
 ├── 07_criar_silver_comportamento_cliente.py
 ├── 08_validar_silver_comportamento_cliente.py
 ├── 09_criar_gold_indicadores_cliente.py
-└── 10_validar_gold_indicadores_cliente.py
+├── 10_validar_gold_indicadores_cliente.py
+├── 11_criar_gold_base_lembrete_vencimento_simulada.py
+├── 06_gold_to_ai_input_cliente.py
+├── 06_gold_validar_ia_input_cliente.py
+├── 07_gerar_recomendacoes_ia_cliente.py
+└── 12_validar_gold_ai_recomendacoes_cliente.py
 ```
 
 ---
@@ -620,33 +632,33 @@ A evolução do projeto foi organizada em etapas progressivas, partindo da engen
 
 ### Etapas já implementadas
 
-* ingestão e padronização dos dados em camadas Raw, Bronze, Silver e Gold
-* construção da base histórica consolidada por cliente
-* criação da base simulada para priorização de lembretes de pagamento
-* desenvolvimento do dashboard executivo em Power BI
-* implementação da camada inteligente de decisão operacional
-* geração das bases `gold_ai_input_cliente.parquet` e `gold_ai_recomendacoes_cliente.parquet`
-* validação da recomendação final com cliente fictício e amostras operacionais
+- ingestão e padronização dos dados em camadas Raw, Bronze, Silver e Gold
+- construção da base histórica consolidada por cliente
+- criação da base simulada para priorização de lembretes de pagamento
+- desenvolvimento do dashboard executivo em Power BI
+- implementação da camada inteligente de decisão operacional
+- geração das bases `gold_ai_input_cliente.parquet` e `gold_ai_recomendacoes_cliente.parquet`
+- validação da recomendação final com cliente fictício e amostras operacionais
 
 ### Etapa atual
 
 Na etapa atual, o projeto já é capaz de transformar dados históricos e operacionais em recomendações acionáveis para a régua de lembretes de pagamento, com foco em:
 
-* priorização de clientes
-* recomendação de ação
-* sugestão de canal
-* definição do status da automação
-* identificação de casos que exigem revisão humana
+- priorização de clientes
+- recomendação de ação
+- sugestão de canal
+- definição do status da automação
+- identificação de casos que exigem revisão humana
 
 ### Próximas evoluções
 
 Como evolução futura, o projeto poderá incorporar:
 
-* geração textual com LLM para mensagens e justificativas
-* uso de RAG para consulta de regras e documentação de negócio
-* agente de IA para orquestração da recomendação ponta a ponta
-* expansão da camada analítica com novos critérios de priorização
-* publicação do dashboard em ambiente compartilhado
+- geração textual com LLM para mensagens e justificativas
+- uso de RAG para consulta de regras e documentação de negócio
+- agente de IA para orquestração da recomendação ponta a ponta
+- expansão da camada analítica com novos critérios de priorização
+- publicação do dashboard em ambiente compartilhado
 
 ---
 
@@ -656,28 +668,28 @@ A solução desenvolvida neste projeto pode ser aplicada em diferentes contextos
 
 ### Aplicações diretas
 
-* operações de lembrete de pagamento antes do vencimento
-* priorização de clientes com maior risco de atraso
-* identificação de casos elegíveis para automação
-* separação de clientes que exigem revisão humana antes de qualquer contato
-* apoio à régua de comunicação preventiva por perfil de cliente
+- operações de lembrete de pagamento antes do vencimento
+- priorização de clientes com maior risco de atraso
+- identificação de casos elegíveis para automação
+- separação de clientes que exigem revisão humana antes de qualquer contato
+- apoio à régua de comunicação preventiva por perfil de cliente
 
 ### Aplicações analíticas
 
-* análise do comportamento histórico de pagamento
-* segmentação de clientes por risco de atraso
-* construção de indicadores operacionais para cobrança preventiva
-* apoio à tomada de decisão em áreas de dados, CRM e cobrança
-* acompanhamento de clientes com vencimento próximo e maior criticidade
+- análise do comportamento histórico de pagamento
+- segmentação de clientes por risco de atraso
+- construção de indicadores operacionais para cobrança preventiva
+- apoio à tomada de decisão em áreas de dados, CRM e cobrança
+- acompanhamento de clientes com vencimento próximo e maior criticidade
 
 ### Evoluções possíveis
 
 A arquitetura do projeto também permite expansão para cenários como:
 
-* geração textual de mensagens e justificativas com LLM
-* uso de RAG para consulta de regras e políticas de negócio
-* criação de agente de IA para orquestração operacional
-* recomendação mais personalizada por canal, prazo e perfil
-* integração com fluxos automatizados de comunicação
+- geração textual de mensagens e justificativas com LLM
+- uso de RAG para consulta de regras e políticas de negócio
+- criação de agente de IA para orquestração operacional
+- recomendação mais personalizada por canal, prazo e perfil
+- integração com fluxos automatizados de comunicação
 
 ---

@@ -662,6 +662,28 @@ Como evolução futura, o projeto poderá incorporar:
 
 ---
 
+## Documentação Complementar
+
+Para detalhar a evolução da solução, o projeto também possui documentos complementares:
+
+- `docs/12_validacao_manual_casos.md`  
+  Validação manual de cenários representativos da camada inteligente.
+
+- `docs/13_desenho_rag_llm_agente.md`  
+  Desenho futuro da solução com RAG, LLM e agente de IA.
+
+- `docs/rag/01_politica_comunicacao.md`  
+  Regras iniciais para comunicação preventiva.
+
+- `docs/rag/02_regras_priorizacao.md`  
+  Critérios de priorização operacional.
+
+- `docs/rag/03_tratamento_clientes_bloqueados.md`  
+  Tratamento esperado para casos bloqueados.
+
+- `docs/rag/04_tom_mensagem.md`  
+  Diretrizes para o tom da mensagem.
+
 ## Possíveis Usos
 
 A solução desenvolvida neste projeto pode ser aplicada em diferentes contextos de negócio que dependem de priorização de clientes e comunicação preventiva.
